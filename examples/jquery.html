@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HJSorth + jQuery</title>
+  <meta charset="utf-8">
+  <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+  <script src="../hjsorth.min.js"></script>
+  <style>
+    body {
+      background: #2E5F3E;
+    }
+    div {
+      position: absolute;
+      top: 50%;
+      margin-top: -200px;
+      left: 0;
+      width: 100%;
+    }
+    h1 {
+      background: #4FA46B;
+      color: #FFF;
+      font-size: 100px;
+      height: 130px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
+      width: 50%;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>LOL WUT</h1>
+  </div>
+  <script type="application/forth">
+    JS-STRING" h1" 1 JS-VARIABLE jQuery DUP JS-CALL VALUE h1
+    h1 JS-PROPERTY@ fadeTo VALUE fadeTo
+    15 0 DO
+      4000 0 2 h1 fadeTo JS-CALL
+      4000 1 2 h1 fadeTo JS-CALL
+    LOOP
+  </script>
+</body>
+</html>
