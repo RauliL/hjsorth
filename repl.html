@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HJSorth REPL</title>
+  <meta charset="utf-8">
+  <script src="./hjsorth.min.js"></script>
+  <link href="http://fonts.googleapis.com/css?family=Inconsolata&amp;subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #002b36;
+      color: #839496;
+      font: 1.1em "Inconsolata", monospace;
+    }
+    div {
+      min-height: 1.9em;
+      padding: 0.4em 1em 0.4em 1em;
+      width: 100%;
+    }
+    div.error {
+      color: #dc322f;
+    }
+    div.output {
+      color: #268bd2;
+    }
+    div:hover {
+      background-color: #003f50;
+    }
+    div.prompt {
+      background-color: #686e75 !important;
+      padding: 0 !important;
+    }
+    div.prompt > span {
+      color: #002b36;
+      display: inline-block;
+      padding: 0.4em 0;
+      text-align: center;
+      width: 5%;
+    }
+    div.prompt > input {
+      background: transparent;
+      border: 0;
+      color: #002b36;
+      cursor: pointer;
+      display: inline-block;
+      font: 1.1em "Inconsolata", monospace;
+      padding: 0.4em 0;
+      width: 95%;
+    }
+  </style>
+</head>
+<body>
+  <script>
+  //<![CDATA[
+    window.addEventListener("load", function()
+    {
+      var forthContext = forth.createContext();
+      var promptContainer = document.createElement("div");
+      var promptLabel = document.createElement("span");
+      var promptInput = document.createElement("input");
+      var print = function(text, lineClass)
+      {
+        var lineContainer = document.createElement("div");
+
+        lineContainer.setAttribute("class", lineClass);
+        lineContainer.textContent = text;
+        document.body.replaceChild(lineContainer, promptContainer);
+        document.body.appendChild(promptContainer);
+      };
+
+      promptInput.addEventListener("keydown", function(event)
+      {
+        var line = promptInput.value.trim();
+
+        if (event.keyCode != 13)
+        {
+          return;
+        }
+        event.preventDefault();
+        if (line.length > 0)
+        {
+          print(line, "input");
+          forthContext.source = line;
+          forthContext.offset = 0;
+          try
+          {
+            forthContext.interpret();
+          }
+          catch (error)
+          {
+            print(error, "error");
+          }
+        }
+        promptInput.value = "";
+        promptInput.focus();
+      });
+      forth.output = function(value)
+      {
+        print(String(value), "output");
+      };
+      promptLabel.textContent = "OK";
+      promptContainer.setAttribute("class", "prompt");
+      promptContainer.appendChild(promptLabel);
+      promptContainer.appendChild(promptInput);
+      document.body.appendChild(promptContainer);
+      promptInput.focus();
+    });
+  //]]>
+  </script>
+</body>
+</html>
