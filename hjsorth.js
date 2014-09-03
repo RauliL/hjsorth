@@ -165,24 +165,47 @@ var forth = (function()
             {
                 var code = context.definitions.pop().code;
 
-                --context.compile;
-                while (context.cstack.data[context.cstack.data.length - 1] < context.cstack.data[context.cstack.data.length - 2])
+                if (--context.compile)
                 {
-                    for (var i = 0; i < code.length; ++i)
+                    context.definitions.peek().push(function(context)
                     {
-                        var token = code[i];
-
-                        if (typeof(token) === "function")
+                        while (context.rstack.peek() < context.rstack.peekNext())
                         {
-                            token(context);
-                        } else {
-                            context.stack.push(token);
+                            context.rstack.inc(context.stack.pop());
+                            for (var i = 0; i < code.length; ++i)
+                            {
+                                var token = code[i];
+
+                                if (typeof(token) === "function")
+                                {
+                                    token(context);
+                                } else {
+                                    context.stack.push(token);
+                                }
+                            }
+                        }
+                        context.rstack.pop();
+                        context.rstack.pop();
+                    });
+                } else {
+                    while (context.rstack.peek() < context.rstack.peekNext())
+                    {
+                        context.rstack.inc(context.stack.pop());
+                        for (var i = 0; i < code.length; ++i)
+                        {
+                            var token = code[i];
+
+                            if (typeof(token) === "function")
+                            {
+                                token(context);
+                            } else {
+                                context.stack.push(token);
+                            }
                         }
                     }
-                    context.cstack.data[context.cstack.data.length - 1] += context.stack.pop();
+                    context.rstack.pop();
+                    context.rstack.pop();
                 }
-                context.cstack.pop();
-                context.cstack.pop();
             }
         },
         /**
@@ -1018,13 +1041,24 @@ var forth = (function()
         },
         {
             name: "DO",
+            immediate: true,
             interpret: function(context)
             {
-                var x = context.stack.pop();
-                var y = context.stack.pop();
+                if (context.compile++)
+                {
+                    context.definitions.peek().code.push(function(context)
+                    {
+                        var x = context.stack.pop();
+                        var y = context.stack.pop();
 
-                context.cstack.push(y, x);
-                ++context.compile;
+                        context.rstack.push(y, x);
+                    });
+                } else {
+                    var x = context.stack.pop();
+                    var y = context.stack.pop();
+
+                    context.rstack.push(y, x);
+                }
                 context.definitions.push({code: []});
             }
         },
@@ -1219,18 +1253,13 @@ var forth = (function()
             name: "I",
             interpret: function(context)
             {
-                context.stack.push(context.cstack.peek());
+                context.stack.push(context.rstack.peek());
             }
         },
         {
             name: "IF",
+            immediate: true,
             interpret: function(context)
-            {
-                context.cstack.push(context.stack.pop());
-                context.definitions.push({code: []});
-                ++context.compile;
-            },
-            compile: function(context)
             {
                 context.definitions.push({code: []});
                 ++context.compile;
@@ -1265,7 +1294,13 @@ var forth = (function()
                 context.stack.push(~context.stack.pop());
             }
         },
-        // TODO: "J"
+        {
+            name: "J",
+            interpret: function(context)
+            {
+                context.stack.push(context.rstack.peekNext());
+            }
+        },
         // TODO: "KEY"
         // TODO: "LEAVE"
         /**
@@ -1297,24 +1332,47 @@ var forth = (function()
             {
                 var code = context.definitions.pop().code;
 
-                --context.compile;
-                while (context.cstack.data[context.cstack.data.length - 1] < context.cstack.data[context.cstack.data.length - 2])
+                if (--context.compile)
                 {
-                    for (var i = 0; i < code.length; ++i)
+                    context.definitions.peek().code.push(function(context)
                     {
-                        var token = code[i];
-
-                        if (typeof(token) === "function")
+                        while (context.rstack.peek() < context.rstack.peekNext())
                         {
-                            token(context);
-                        } else {
-                            context.stack.push(token);
+                            context.rstack.inc(1);
+                            for (var i = 0; i < code.length; ++i)
+                            {
+                                var token = code[i];
+
+                                if (typeof(token) === "function")
+                                {
+                                    token(context);
+                                } else {
+                                    context.stack.push(token);
+                                }
+                            }
+                        }
+                        context.rstack.pop();
+                        context.rstack.pop();
+                    });
+                } else {
+                    while (context.rstack.peek() < context.rstack.peekNext())
+                    {
+                        context.rstack.inc(1);
+                        for (var i = 0; i < code.length; ++i)
+                        {
+                            var token = code[i];
+
+                            if (typeof(token) === "function")
+                            {
+                                token(context);
+                            } else {
+                                context.stack.push(token);
+                            }
                         }
                     }
-                    context.cstack.data[context.cstack.data.length - 1]++;
+                    context.rstack.pop();
+                    context.rstack.pop();
                 }
-                context.cstack.pop();
-                context.cstack.pop();
             }
         },
         /**
@@ -1699,7 +1757,7 @@ var forth = (function()
                         }
                     });
                 }
-                else if (context.cstack.pop() != 0)
+                else if (context.stack.pop() != 0)
                 {
                     for (var i = 0; i < code.length; ++i)
                     {
@@ -2600,6 +2658,11 @@ var forth = (function()
         return this.data[this.data.length - 1];
     };
 
+    Stack.prototype.peekNext = function()
+    {
+        return this.data[this.data.length - 2];
+    };
+
     Stack.prototype.push = function()
     {
         Array.prototype.push.apply(this.data, arguments);
@@ -2635,6 +2698,11 @@ var forth = (function()
     Stack.prototype.clear = function()
     {
         this.data.length = 0;
+    };
+
+    Stack.prototype.inc = function(n)
+    {
+        this.data[this.data.length - 1] += n;
     };
 
     var Dictionary = function()
@@ -2682,7 +2750,6 @@ var forth = (function()
         this.offset = 0;
         this.stack = new Stack();
         this.rstack = new Stack();
-        this.cstack = new Stack();
         this.definitions = new Stack();
         this.compile = 0;
         this.base = 10;
