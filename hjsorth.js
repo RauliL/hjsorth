@@ -37,14 +37,14 @@ var forth = (function()
             name: "'",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var word = context.forth.dictionary.findOrFail(name);
 
                 context.stack.push(word.interpret);
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -172,17 +172,7 @@ var forth = (function()
                         while (context.rstack.peek() < context.rstack.peekNext())
                         {
                             context.rstack.inc(context.stack.pop());
-                            for (var i = 0; i < code.length; ++i)
-                            {
-                                var token = code[i];
-
-                                if (typeof(token) === "function")
-                                {
-                                    token(context);
-                                } else {
-                                    context.stack.push(token);
-                                }
-                            }
+                            context.executeTokens(code);
                         }
                         context.rstack.pop();
                         context.rstack.pop();
@@ -191,17 +181,7 @@ var forth = (function()
                     while (context.rstack.peek() < context.rstack.peekNext())
                     {
                         context.rstack.inc(context.stack.pop());
-                        for (var i = 0; i < code.length; ++i)
-                        {
-                            var token = code[i];
-
-                            if (typeof(token) === "function")
-                            {
-                                token(context);
-                            } else {
-                                context.stack.push(token);
-                            }
-                        }
+                        context.executeTokens(code);
                     }
                     context.rstack.pop();
                     context.rstack.pop();
@@ -503,14 +483,14 @@ var forth = (function()
             name: ":",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.push({name: name, code: []});
                 ++context.compile;
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -535,21 +515,11 @@ var forth = (function()
                 var code = word.code;
                 var interpret = function(context)
                 {
-                    for (var i = 0; i < code.length; ++i)
-                    {
-                        var token = code[i];
-
-                        if (typeof(token) === "function")
-                        {
-                            token(context);
-                        } else {
-                            context.stack.push(token);
-                        }
-                    }
+                    context.executeTokens(code);
                 };
 
                 --context.compile;
-                if ("name" in word)
+                if (word.name)
                 {
                     word.interpret = interpret;
                     context.forth.dictionary.push(word);
@@ -852,13 +822,13 @@ var forth = (function()
             name: "CHAR",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.stack.push(name.charCodeAt(0));
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -904,7 +874,7 @@ var forth = (function()
             name: "CONSTANT",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var x = context.stack.pop();
 
                 context.forth.dictionary.push(
@@ -918,7 +888,7 @@ var forth = (function()
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -983,7 +953,7 @@ var forth = (function()
             name: "CREATE",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var address = context.forth.heap.length - 1;
 
                 context.forth.dictionary.push(
@@ -997,7 +967,7 @@ var forth = (function()
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -1036,7 +1006,7 @@ var forth = (function()
             name: "DEPTH",
             interpret: function(context)
             {
-                context.stack.push(context.stack.depth());
+                context.stack.push(context.stack.length);
             }
         },
         {
@@ -1089,28 +1059,19 @@ var forth = (function()
         },
         {
             name: "ELSE",
-            compile: function(context)
+            immediate: true,
+            interpret: function(context)
             {
                 var code = context.definitions.pop().code;
 
                 context.definitions.push({code: []});
                 if (context.compile > 1)
                 {
-                    context.definitions.data[context.definitions.data.length - 2].code.push(function(context)
+                    context.definitions.peekNext().code.push(function(context)
                     {
                         if (context.stack.pop() != 0)
                         {
-                            for (var i = 0; i < code.length; ++i)
-                            {
-                                var token = code[i];
-
-                                if (typeof(token) === "function")
-                                {
-                                    token(context);
-                                } else {
-                                    context.stack.push(token);
-                                }
-                            }
+                            context.executeTokens(code);
                             context.stack.push(0);
                         } else {
                             context.stack.push(1);
@@ -1119,17 +1080,7 @@ var forth = (function()
                 }
                 else if (context.stack.pop() != 0)
                 {
-                    for (var i = 0; i < code.length; ++i)
-                    {
-                        var token = code[i];
-
-                        if (typeof(token) === "function")
-                        {
-                            token(context);
-                        } else {
-                            context.stack.push(token);
-                        }
-                    }
+                    context.executeTokens(code);
                     context.stack.push(0);
                 } else {
                     context.stack.push(1);
@@ -1328,28 +1279,19 @@ var forth = (function()
         },
         {
             name: "LOOP",
-            compile: function(context)
+            immediate: true,
+            interpret: function(context)
             {
                 var code = context.definitions.pop().code;
 
-                if (--context.compile)
+                if (--context.compile > 0)
                 {
                     context.definitions.peek().code.push(function(context)
                     {
                         while (context.rstack.peek() < context.rstack.peekNext())
                         {
+                            context.executeTokens(code);
                             context.rstack.inc(1);
-                            for (var i = 0; i < code.length; ++i)
-                            {
-                                var token = code[i];
-
-                                if (typeof(token) === "function")
-                                {
-                                    token(context);
-                                } else {
-                                    context.stack.push(token);
-                                }
-                            }
                         }
                         context.rstack.pop();
                         context.rstack.pop();
@@ -1357,18 +1299,8 @@ var forth = (function()
                 } else {
                     while (context.rstack.peek() < context.rstack.peekNext())
                     {
+                        context.executeTokens(code);
                         context.rstack.inc(1);
-                        for (var i = 0; i < code.length; ++i)
-                        {
-                            var token = code[i];
-
-                            if (typeof(token) === "function")
-                            {
-                                token(context);
-                            } else {
-                                context.stack.push(token);
-                            }
-                        }
                     }
                     context.rstack.pop();
                     context.rstack.pop();
@@ -1534,7 +1466,7 @@ var forth = (function()
             name: "POSTPONE",
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var word = context.forth.dictionary.findOrFail(name);
 
                 context.definitions.peek().code.push(word.compile ? word.compile : word.interpret);
@@ -1743,33 +1675,13 @@ var forth = (function()
                     {
                         if (context.stack.pop() != 0)
                         {
-                            for (var i = 0; i < code.length; ++i)
-                            {
-                                var token = code[i];
-
-                                if (typeof(token) === "function")
-                                {
-                                    token(context);
-                                } else {
-                                    context.stack.push(token);
-                                }
-                            }
+                            context.executeTokens(code);
                         }
                     });
                 }
                 else if (context.stack.pop() != 0)
                 {
-                    for (var i = 0; i < code.length; ++i)
-                    {
-                        var token = code[i];
-
-                        if (typeof(token) === "function")
-                        {
-                            token(context);
-                        } else {
-                            context.stack.push(token);
-                        }
-                    }
+                    context.executeTokens(code);
                 }
             }
         },
@@ -1875,7 +1787,7 @@ var forth = (function()
             name: "VARIABLE",
             interpret: function(context)
             {
-                var word = context.nextWordOrFail();
+                var word = context.readWordOrFail();
                 var address = context.forth.heap.length;
 
                 context.forth.heap.push(0);
@@ -1883,7 +1795,7 @@ var forth = (function()
             },
             compile: function(context)
             {
-                var word = context.nextWordOrFail();
+                var word = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -1944,7 +1856,7 @@ var forth = (function()
             name: "[']",
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var word = context.forth.dictionary.findOrFail(name);
 
                 context.definitions.peek().code.push(function(context)
@@ -1968,7 +1880,7 @@ var forth = (function()
             name: "[CHAR]",
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -2300,7 +2212,7 @@ var forth = (function()
             {
                 var u = context.stack.popUnsigned();
 
-                context.stack.push(context.stack.data[context.data.length - u]);
+                context.stack.push(context.stack[context.length - u]);
             }
         },
         // TODO: "QUERY"
@@ -2336,7 +2248,7 @@ var forth = (function()
             name: "TO",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var word = context.forth.dictionary.findOrFail(name);
                 var x = context.stack.pop();
 
@@ -2351,7 +2263,7 @@ var forth = (function()
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -2468,7 +2380,7 @@ var forth = (function()
             name: "VALUE",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var x = context.stack.pop();
 
                 context.forth.dictionary.push(
@@ -2482,7 +2394,7 @@ var forth = (function()
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -2513,7 +2425,7 @@ var forth = (function()
             name: "[COMPILE]",
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var word = context.forth.dictionary.findOrFail(name);
 
                 context.definitions.peek().push(word.compile ? word.compile : word.interpret);
@@ -2568,13 +2480,13 @@ var forth = (function()
             name: "JS-VARIABLE",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.stack.push(window[name]);
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -2586,14 +2498,14 @@ var forth = (function()
             name: "JS-PROPERTY@",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var x = context.stack.pop();
 
                 context.stack.push(x[name]);
             },
             compile: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var x = context.stack.pop();
 
                 context.definitions.peek().code.push(function(context)
@@ -2606,7 +2518,7 @@ var forth = (function()
             name: "JS-PROPERTY!",
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
                 var receiver = context.stack.pop();
                 var value = context.stack.pop();
 
@@ -2614,7 +2526,7 @@ var forth = (function()
             },
             interpret: function(context)
             {
-                var name = context.nextWordOrFail();
+                var name = context.readWordOrFail();
 
                 context.definitions.peek().code.push(function(context)
                 {
@@ -2645,27 +2557,25 @@ var forth = (function()
 
     var Stack = function()
     {
-        this.data = [];
+        return this;
     };
 
-    Stack.prototype.depth = function()
-    {
-        return this.data.length;
-    };
+    Stack.prototype = Object.create(Array.prototype);
 
     Stack.prototype.peek = function()
     {
-        return this.data[this.data.length - 1];
+        if (this.length > 0)
+        {
+            return this[this.length - 1];
+        }
     };
 
     Stack.prototype.peekNext = function()
     {
-        return this.data[this.data.length - 2];
-    };
-
-    Stack.prototype.push = function()
-    {
-        Array.prototype.push.apply(this.data, arguments);
+        if (this.length > 1)
+        {
+            return this[this.length - 2];
+        }
     };
 
     Stack.prototype.pushUnsigned = function()
@@ -2674,18 +2584,13 @@ var forth = (function()
         {
             var value = arguments[i];
 
-            this.data.push(value < 0 ? -value : value);
+            this.push(value < 0 ? -value : value);
         }
-    };
-
-    Stack.prototype.pop = function()
-    {
-        return this.data.pop();
     };
 
     Stack.prototype.popUnsigned = function()
     {
-        var value = this.data.pop();
+        var value = this.pop();
 
         if (value < 0)
         {
@@ -2697,17 +2602,19 @@ var forth = (function()
 
     Stack.prototype.clear = function()
     {
-        this.data.length = 0;
+        this.length = 0;
     };
 
     Stack.prototype.inc = function(n)
     {
-        this.data[this.data.length - 1] += n;
+        this[this.length - 1] += n;
     };
 
     var Dictionary = function()
     {
         this.words = {};
+
+        return this;
     };
 
     Dictionary.prototype.find = function(name)
@@ -2753,9 +2660,11 @@ var forth = (function()
         this.definitions = new Stack();
         this.compile = 0;
         this.base = 10;
+
+        return this;
     };
 
-    Context.prototype.nextWord = function()
+    Context.prototype.readWord = function()
     {
         var begin = this.offset;
         var end = this.offset;
@@ -2779,9 +2688,9 @@ var forth = (function()
         }
     };
 
-    Context.prototype.nextWordOrFail = function()
+    Context.prototype.readWordOrFail = function()
     {
-        var word = this.nextWord();
+        var word = this.readWord();
 
         if (!word)
         {
@@ -2818,7 +2727,7 @@ var forth = (function()
     {
         while (this.offset < this.source.length)
         {
-            var name = this.nextWord();
+            var name = this.readWord();
             var word;
 
             if (!name)
@@ -2837,7 +2746,9 @@ var forth = (function()
                 } else {
                     this.definitions.peek().code.push(word.interpret);
                 }
-            } else {
+            }
+            else if (/^\d+$/.test(name))
+            {
                 var number = parseInt(name, this.base);
 
                 if (isNaN(number))
@@ -2850,6 +2761,26 @@ var forth = (function()
                 } else {
                     this.stack.push(number);
                 }
+            } else {
+                if (isNaN(number))
+                {
+                    throw "unrecognized word: " + name;
+                }
+            }
+        }
+    };
+
+    Context.prototype.executeTokens = function(tokens)
+    {
+        for (var i = 0, length = tokens.length; i < length; ++i)
+        {
+            var token = tokens[i];
+
+            if (typeof(token) === "function")
+            {
+                token(this);
+            } else {
+                this.stack.push(token);
             }
         }
     };
@@ -2859,10 +2790,12 @@ var forth = (function()
         this.heap = [];
         this.heapNext = -1;
         this.dictionary = new Dictionary();
-        for (var i = 0; i < glossary.length; ++i)
+        for (var i = 0, length = glossary.length; i < length; ++i)
         {
             this.dictionary.push(glossary[i]);
         }
+
+        return this;
     };
 
     Forth.prototype.createContext = function(source)
@@ -2870,9 +2803,9 @@ var forth = (function()
         return new Context(this, source);
     };
 
-    Forth.prototype.eval = function(source)
+    Forth.prototype.execute = function(source)
     {
-        return this.createContext(source).interpret();
+        this.createContext(source).interpret();
     };
 
     Forth.prototype.output = function(text)
@@ -2901,7 +2834,7 @@ var forth = (function()
         return this.createContext(source).interpret();
     };
 
-    var instance = new Forth();
+    var interpreter = new Forth();
 
     window.addEventListener("load", function()
     {
@@ -2940,15 +2873,10 @@ var forth = (function()
 
             if (script.type == "application/forth")
             {
-                if (script.src)
-                {
-                    instance.eval(load(script.src));
-                } else {
-                    instance.eval(script.innerHTML);
-                }
+                interpreter.execute(script.src ? load(script.src) : script.innerHTML);
             }
         }
     });
 
-    return instance;
+    return interpreter;
 }());
