@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Prime number calculation</title>
+  <meta charset="utf-8">
+  <script src="../hjsorth.min.js"></script>
+</head>
+<body>
+  <script type="application/forth">
+    : ?PRIME
+      ABS
+      DUP 3 >
+      IF
+        DUP 2 /MOD
+        SWAP 0=
+        IF
+          NIP FALSE
+        ELSE
+          1-
+          BEGIN
+            2DUP MOD
+            OVER 1 >
+            AND
+          WHILE
+            1-
+          REPEAT
+          NIP
+          DUP 1 <=
+        THEN
+      ELSE
+        DUP 1 > IF DROP 1 TRUE ELSE FALSE THEN
+      THEN
+    ;
+
+    : LIST-PRIMES
+      ABS
+      DUP 0>
+      IF
+        1+ 2 DO
+          I ?PRIME
+          IF
+            I . CR
+          THEN
+          DROP
+        LOOP
+      ELSE
+        DROP
+      THEN
+    ;
+
+    60 LIST-PRIMES
+  </script>
+</body>
+</html>
