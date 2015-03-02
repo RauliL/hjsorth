@@ -727,7 +727,22 @@ var forth = (function()
             }
         },
         // TODO: "BASE"
-        // TODO: "BEGIN"
+        /**
+         * BEGIN ( -- )
+         *
+         * Put the next location for a transfer of control, dest, onto the
+         * control flow stack. Append the run-time semantics given below to
+         * the current definition.
+         */
+        {
+            name: "BEGIN",
+            immediate: true,
+            interpret: function(context)
+            {
+                context.definitions.push({code: []});
+                ++context.compile;
+            }
+        },
         /**
          * BL ( -- char )
          *
@@ -1768,7 +1783,45 @@ var forth = (function()
             }
         },
         // TODO: "UNLOOP"
-        // TODO: "UNTIL"
+        /**
+         * Compilation:
+         * UNTIL ( C: dest -- )
+         *
+         * Append the run-time semantics given below to the current definition,
+         * resolving the backward reference dest.
+         *
+         * Run-time:
+         * ( x -- )
+         *
+         * If all bits of x are zero, continue execution at the location
+         * specified by dest.
+         */
+        {
+            name: "UNTIL",
+            immediate: true,
+            interpret: function(context)
+            {
+                var code = context.definitions.pop().code;
+
+                if (--context.compile > 0)
+                {
+                    context.definitions.peek().code.push(function(context)
+                    {
+                        do
+                        {
+                            context.executeTokens(code);
+                        }
+                        while (!context.stack.pop());
+                    });
+                } else {
+                    do
+                    {
+                        context.executeTokens(code);
+                    }
+                    while (!context.stack.pop());
+                }
+            }
+        },
         /**
          * VARIABLE ( "<spaces>name" -- )
          *
@@ -2053,7 +2106,42 @@ var forth = (function()
             }
         },
         // TODO: "?DO"
-        // TODO: "AGAIN"
+        /**
+         * AGAIN ( C: dest -- )
+         *
+         * Append the run-time semantics given below to the current definition,
+         * resolving the backward reference dest.
+         *
+         * Run-time: ( -- )
+         *
+         * Continue execution at the location specified by dest. If no other
+         * control flow words are used, any program code after AGAIN will not be
+         * executed.
+         */
+        {
+            name: "AGAIN",
+            immediate: true,
+            interpret: function(context)
+            {
+                var code = context.definitions.pop().code;
+
+                if (--context.compile > 0)
+                {
+                    context.definitions.peek().code.push(function(context)
+                    {
+                        while (true)
+                        {
+                            context.executeTokens(code);
+                        }
+                    });
+                } else {
+                    while (true)
+                    {
+                        context.executeTokens(code);
+                    }
+                }
+            }
+        },
         /**
          * C" ( "ccc<quote>" -- )
          *
